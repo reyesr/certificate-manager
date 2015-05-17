@@ -1,18 +1,27 @@
 ## Certificate manager
 
-This script manages the creation of RSA self-signing certificates:
+This script creates and manages self-signed certificates:
 
-- Initialize a Certificate Authority (CA) and a root certificate
-- Create client certificates
-- Revoke client certificate
+- Automatically creates CA-chained server certificates
+- Creates a CA root certificate to be added to Windows/Linux/MacOS and browsers
+- Transparently manages the CA database
+- Creates and revokes client certificates
+- Updates the revoked certificates CRL file for servers.
 - Generate an nginx configuration
+- One single bash script and no dependencies except openssl, ideal for Docker configurations
+- Generate RSA 2048 or 4096
+
+The certificate manager script creates in one command the full set of self-signed certificates and CA files; it
+also provides a simple interface to create and revoke client certificates chained to the root CA.
 
 ## Using client certificates
 
-Client certificates are mainly useful to provide an additional control over the access of a web location. 
+While server certificates provide authentication and data confidentiality to the clients, client certificates
+provides an additional authentication and security to the server directly at the transport protocol level.
 
-A typical scenario would be to create specific client certificates to remote users, and revoking their access 
-server-side without any modification of the web application. This script helps manage this workflow.
+It permits a refined access control without any modification at the application level.
+
+This script easely manages the typical workflow of the creation and revoking of client certificates in a single command.
 
 ## Workflow example
 
@@ -22,10 +31,11 @@ First, let's create a new certificate:
 
     mkdir MyNewCA
     cd MyNewCA
-    certificate_manager.sh -o "My Self Org" -c 24000 initialize www.example.com
+    certificate_manager.sh initialize www.example.com
 
-At this point, the script asks a few questions about your organization and domain name. This last command
-creates a root CA, and creates a TLS certificate based on this root. Check the files, you should see a list not unlike this one:
+At this point, the script needs a few information asks a few questions about your organization and domain name. This command
+creates a root CA and the server certificate for the www.example.com domain chained to the root. 
+Check the files, you should see a list not unlike this one:
 
     $ find .
     .
@@ -48,19 +58,23 @@ creates a root CA, and creates a TLS certificate based on this root. Check the f
 
 The root certificate and its secret key are the files that you should keep extra-safe, as they are used to create the server and client certificates.
 
-The CA database are a bunch of files used by openssl, it's not usually necessary except when you need to revoke client certificates: this helps keeping track of 
-the created certificates and create a list of all the revoked ones. This is only useful to openssl, so you can ignore the `ca/` folder.
+The CA database is a set of files stores in the `ca/` folder, and are usually not required, except to
+keep track of the client certificates and their revocation. 
 
 If you use Nginx, you will need the `www.example.com-chained-with-ca.crt` file: it's a
 concat of the server certificate and the CA certificate, and this is the only format
 (at the time of this writing) accepted by Nginx to provide chained certificates.
 
 If you use apache2, you would rather use the following directives:
-  SSLCertificateFile /etc/apache2/ssl/www.example.com.crt
-  SSLCertificateKeyFile /etc/apache2/ssl/www.example.com.key
-  SSLCACertificateFile /etc/apache2/ssl/www.example.com-rootCA.crt
 
-Also, if you plan to use client certificate, do not forget to include the ./*.crl.pem file. It describes all the revoked client certificates, so it's very useful when you know that you may have to revoke a compromised certificate (rather than changing all the server and the client certificates).
+    SSLCertificateFile /etc/apache2/ssl/www.example.com.crt
+    SSLCertificateKeyFile /etc/apache2/ssl/www.example.com.key
+    SSLCACertificateFile /etc/apache2/ssl/www.example.com-rootCA.crt
+
+Also, if you plan to use client certificates, do not forget to include the ./*.crl.pem. 
+This file lists all the revoked client certificates, so it's very useful when you know that 
+you may have to revoke a compromised certificate (rather than changing all the server and the client certificates of
+your users).
 
 ### Creating a client certificate
 
@@ -69,9 +83,9 @@ Creating a new client certificate is rather easy:
     certificate-manager.sh create Joe s3cR3tp4ssw0rd 120
 
 This creates a certificate for "Joe", with the password "s3cR3tp4ssw0rd". The certificate
-expires 120 days later, so after this date, the ssl will be rejected by the server. The password is the import password, in other words, the user will need to set the password
-when importing the certificated in the browser (but once it's imported, the password
-is not needed anymore)
+expires 120 days later, so after this date, the ssl will be rejected by the server. 
+The password is typically asked when importing the certificate (once it's imported, clients that use a form
+of certificate storage usually do not ask it again).
 
 Let's see what files were created during this process:
 
@@ -85,15 +99,19 @@ Let's see what files were created during this process:
     ./Clients/Joe/Joe.key
     ./Clients/Joe/Joe.password    <- A reminder of the import password
     
-To install the client certificate in a browser, use the .pfx or .p12 file (Firefox wants a .pfx, and chrome wants a .p12, but it's the same format actually).
+To install the client certificate in a browser, use the .pfx or .p12 file (Firefox wants a .pfx, while 
+chrome wants a .p12, but it's the same format actually).
     
-To have your client recognize with no security warning the server certificate, you
+To ensure your client recognizes the server certificate (at least without a security warning), you
 can additionnaly install the root certificate. For instance, on Ubuntu:
 To install the certificate on an Ubuntu linux, 
 
     # You may need to "sudo apt-get install ca-certificates" first
     sudo cp www.example.com-rootCA.crt /usr/share/ca-certificates/local/
     sudo update-ca-certificates --fresh
+
+Refer to your operating system documentation for the details of importing a certificate as trusted root, 
+in any case you'll have to import the *-rootCA.crt file system-wide. 
 
 ### Revoking a certificate
 
@@ -106,7 +124,13 @@ and the CRL file are updated. You need to update your web server with the new ve
 of ./www.example.com.crl.pem and any further request using Joe's client certificate
 is going to be rejected by the server.
 
+### Using curl
 
+Use the `--cert` option to use the client certificate. You may need to add the password for the
+client to the command line.
+
+    curl --cert ./Clients/Joe/Joe-FULL.pem:s3cR3tp4ssw0rd https://www.example.com
+     
 ## Usage
 
 Usage: certificate-manager.sh [OPTIONS] ...
