@@ -61,8 +61,9 @@ along with the domain name to protect, and answer a few interactive question.
 
     certificate-manager.sh create-server "www.example.org"
 
-Note that the creation can run without any interactive question is all the information is provided on the command
-line. The certificate is created in the Servers subdirectory. You should find this folder structure:
+Note that the creation can run without any interactive question if all the information is provided on the command
+line (check the command usage for the options). The certificate is created in the Servers subdirectory. 
+You should find this folder structure:
 
     ./Servers
     ./Servers/www.example.org_20150520
