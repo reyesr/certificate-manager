@@ -117,7 +117,8 @@ ${0##*/} create-server [-s KEY_SIZE] [-z SSL_CLIENT] DOMAIN [DAYS_VALID]
     DAYS_VALID: the validity in days of the certificate
     -s KEY_SIZE: The RSA key size (default 2048)
 
-    -z SSL_CLIENT_OPTION: (for Nginx) either "on" or "optional" (unset
+    [for nginx]
+    -z SSL_CLIENT_OPTION: either "on" or "optional" (unset
     means no client ssl option is added in the nginx configuration).
     If "on", the web client is required to provide a valid
     (ie. not revoked) client certificate, or reject the https
@@ -150,11 +151,6 @@ ${0##*/} revoke-client CERT-FOLDER
     CERT-FOLDER the path to the folder where the client certificate is stored.
        This folder is typically stored in Clients/.
        For instance ./Clients/John_Doe_20150928
-
-${0##*/} nginx [-z SSL_CLIENT_OPTION] CERT-FOLDER
-
-    Creates a basic nginx configuration that you can uses the
-    self-signed certificate.
 
 
 EOF
@@ -189,7 +185,7 @@ function revoke_client_certificate() {
 
 }
 
-function create_client() {
+function create_client_certificate() {
     local NAME="${1:-}"
     [[ -z "$NAME" ]] && NAME=`ask_string "Name of the recipient of this certificate (eg, John Doe)" ""`
     [[ -z "$NAME" ]] && error_exit "The name must not be empty."
@@ -561,13 +557,10 @@ case "${1:-}" in
         create_server_certificate
         ;;
     "create-client")
-        create_client "${2:-}" "${3:-}" "${4:-}"
+        create_client_certificate "${2:-}" "${3:-}" "${4:-}"
         ;;
     "revoke-client")
         revoke_client_certificate "${2:-}"
-        ;;
-    "nginx")
-        create_nginx_config "${2:-}"
         ;;
     *)
         error_exit "Unknown command ${1:-}"
